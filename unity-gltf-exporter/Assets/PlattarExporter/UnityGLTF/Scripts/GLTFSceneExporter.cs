@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using GLTF.Schema;
-using UnityEditor;
 using UnityEngine;
 using UnityGLTF.Extensions;
+using UnityEditor;
 
 namespace UnityGLTF
 {
@@ -73,19 +73,31 @@ namespace UnityGLTF
 		}
 
 		// https://stackoverflow.com/questions/25175864/making-a-texture2d-readable-in-unity-via-code
-		public static void SetTextureImporterFormat(Texture2D texture, bool isReadable)
+		/// <summary>
+		/// Reimport a texture if its readability or type doesn't match the argument.
+		/// Reports the readability and type before calling this function.
+		/// </summary>
+		public static void SetTextureImporterFormat(Texture2D texture,
+													ref bool isReadable,
+													ref TextureImporterType type)
 		{
-			if ( null == texture ) return;
+			if (null == texture) return;
 
-			string assetPath = AssetDatabase.GetAssetPath( texture );
-			var tImporter = AssetImporter.GetAtPath( assetPath ) as TextureImporter;
-			if ( tImporter != null )
+			string assetPath = AssetDatabase.GetAssetPath(texture);
+			var tImporter = AssetImporter.GetAtPath(assetPath) as TextureImporter;
+			if (tImporter != null)
 			{
-				tImporter.textureType = TextureImporterType.Default;
+				if (tImporter.isReadable == isReadable && tImporter.textureType == type) return;
 
-				tImporter.isReadable = isReadable;
+				bool tIsReadable = isReadable;
+				isReadable = tImporter.isReadable;
+				tImporter.isReadable = tIsReadable;
 
-				AssetDatabase.ImportAsset( assetPath );
+				var tType = type;
+				type = tImporter.textureType;
+				tImporter.textureType = tType;
+
+				AssetDatabase.ImportAsset(assetPath);
 				AssetDatabase.Refresh();
 			}
 		}
@@ -119,12 +131,14 @@ namespace UnityGLTF
 			foreach (var image in _images)
 			{
 				Debug.Log(image.name);
-				bool readable = image.isReadable;
-				if (!readable) SetTextureImporterFormat(image, true);
+
+				bool readable = true;
+				TextureImporterType type = TextureImporterType.Default;
+				SetTextureImporterFormat(image, ref readable, ref type);
 				Texture2D exportImage = new Texture2D(image.width, image.height, TextureFormat.RGBA32, false, true);
 				exportImage.SetPixels(image.GetPixels());
 				File.WriteAllBytes(Path.Combine(path, image.name + ".png"), exportImage.EncodeToPNG());
-				if (!readable) SetTextureImporterFormat(image, readable);
+				SetTextureImporterFormat(image, ref readable, ref type);
 			}
 		}
 
