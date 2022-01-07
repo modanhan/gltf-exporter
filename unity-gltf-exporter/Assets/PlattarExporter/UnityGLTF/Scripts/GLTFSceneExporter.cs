@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using GLTF.Schema;
+using UnityEditor;
 using UnityEngine;
 using UnityGLTF.Extensions;
 
@@ -71,6 +72,24 @@ namespace UnityGLTF
 			return _root;
 		}
 
+		// https://stackoverflow.com/questions/25175864/making-a-texture2d-readable-in-unity-via-code
+		public static void SetTextureImporterFormat(Texture2D texture, bool isReadable)
+		{
+			if ( null == texture ) return;
+
+			string assetPath = AssetDatabase.GetAssetPath( texture );
+			var tImporter = AssetImporter.GetAtPath( assetPath ) as TextureImporter;
+			if ( tImporter != null )
+			{
+				tImporter.textureType = TextureImporterType.Default;
+
+				tImporter.isReadable = isReadable;
+
+				AssetDatabase.ImportAsset( assetPath );
+				AssetDatabase.Refresh();
+			}
+		}
+
 		/// <summary>
 		/// Specifies the path and filename for the GLTF Json and binary
 		/// </summary>
@@ -100,13 +119,12 @@ namespace UnityGLTF
 			foreach (var image in _images)
 			{
 				Debug.Log(image.name);
-				var renderTexture = RenderTexture.GetTemporary(image.width, image.height);
-				Graphics.Blit(image, renderTexture);
-				RenderTexture.active = renderTexture;
-				var exportTexture = new Texture2D(image.width, image.height);
-				exportTexture.ReadPixels(new Rect(0, 0, renderTexture.width, renderTexture.height), 0, 0);
-				exportTexture.Apply();
-				File.WriteAllBytes(Path.Combine(path, image.name + ".png"), exportTexture.EncodeToPNG());
+				bool readable = image.isReadable;
+				if (!readable) SetTextureImporterFormat(image, true);
+				Texture2D exportImage = new Texture2D(image.width, image.height, TextureFormat.RGBA32, false, true);
+				exportImage.SetPixels(image.GetPixels());
+				File.WriteAllBytes(Path.Combine(path, image.name + ".png"), exportImage.EncodeToPNG());
+				if (!readable) SetTextureImporterFormat(image, readable);
 			}
 		}
 
